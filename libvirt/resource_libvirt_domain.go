@@ -566,7 +566,12 @@ func resourceLibvirtDomainUpdate(d *schema.ResourceData, meta interface{}) error
 	}
 
 	if d.HasChange("cloudinit") {
-		cloudinit, err := newDiskForCloudInit(virConn, d.Get("cloudinit").(string))
+    cloudinitID, err := getCloudInitVolumeKeyFromTerraformID(d.Get("cloudinit").(string))
+    if err != nil {
+      return err
+    }
+
+		cloudinit, err := newDiskForCloudInit(virConn, cloudinitID)
 		if err != nil {
 			return err
 		}
