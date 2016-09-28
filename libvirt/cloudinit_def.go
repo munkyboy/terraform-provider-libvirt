@@ -1,6 +1,7 @@
 package libvirt
 
 import (
+  "encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+  "path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,15 +21,16 @@ import (
 )
 
 // names of the files expected by cloud-init
-const USERDATA string = "user-data"
-const METADATA string = "meta-data"
+const USERDATA string = "user_data"
+const METADATA string = "meta_data.json"
+const CONFIG_DRIVE_DIR string = "openstack/latest"
 
 type defCloudInit struct {
 	Name     string
 	PoolName string
 	Metadata struct {
-		LocalHostname string `yaml:"local-hostname"`
-		InstanceID    string `yaml:"instance-id"`
+		LocalHostname string `json:"local-hostname"`
+		InstanceID    string `json:"instance-id"`
 	}
 	UserData struct {
 		SSHAuthorizedKeys []string `yaml:"ssh_authorized_keys"`
@@ -151,11 +154,10 @@ func (ci *defCloudInit) createISO() (string, error) {
 		"-output",
 		isoDestination,
 		"-volid",
-		"cidata",
+		"config-2",
 		"-joliet",
 		"-rock",
-		filepath.Join(tmpDir, USERDATA),
-		filepath.Join(tmpDir, METADATA))
+		tmpDir)
 
 	log.Print("About to execute cmd: %+v", cmd)
 	if err = cmd.Run(); err != nil {
@@ -177,6 +179,10 @@ func (ci *defCloudInit) createFiles() (string, error) {
 		return "", fmt.Errorf("Cannot create tmp directory for cloudinit ISO generation: %s",
 			err)
 	}
+  dataDir := path.Join(tmpDir, CONFIG_DRIVE_DIR)
+  if err := os.MkdirAll(dataDir, os.ModePerm); err != nil {
+    return "", fmt.Errorf("Error while creating directory %s: %s", dataDir, err)
+  }
 
 	// Create files required by ISO file
 	ud, err := yaml.Marshal(&ci.UserData)
@@ -185,17 +191,17 @@ func (ci *defCloudInit) createFiles() (string, error) {
 	}
 	userdata := fmt.Sprintf("#cloud-config\n%s", string(ud))
 	if err = ioutil.WriteFile(
-		filepath.Join(tmpDir, USERDATA),
+		filepath.Join(dataDir, USERDATA),
 		[]byte(userdata),
 		os.ModePerm); err != nil {
 		return "", fmt.Errorf("Error while writing user-data to file: %s", err)
 	}
 
-	metadata, err := yaml.Marshal(&ci.Metadata)
+	metadata, err := json.Marshal(&ci.Metadata)
 	if err != nil {
 		return "", fmt.Errorf("Error dumping cloudinit's meta data: %s", err)
 	}
-	if err = ioutil.WriteFile(filepath.Join(tmpDir, METADATA), metadata, os.ModePerm); err != nil {
+	if err = ioutil.WriteFile(filepath.Join(dataDir, METADATA), metadata, os.ModePerm); err != nil {
 		return "", fmt.Errorf("Error while writing meta-data to file: %s", err)
 	}
 
@@ -264,7 +270,7 @@ func newCloudInitDefFromRemoteISO(virConn *libvirt.VirConnection, id string) (de
 		log.Printf("ISO reader: processing file %s", f.Name())
 
 		//TODO: the iso9660 has a bug...
-		if f.Name() == "/user_dat." {
+		if f.Name() == "/openstac/latest/user_dat." {
 			data, err := ioutil.ReadAll(f.Sys().(io.Reader))
 			if err != nil {
 				return ci, fmt.Errorf("Error while reading %s: %s", USERDATA, err)
@@ -275,12 +281,12 @@ func newCloudInitDefFromRemoteISO(virConn *libvirt.VirConnection, id string) (de
 		}
 
 		//TODO: the iso9660 has a bug...
-		if f.Name() == "/meta_dat." {
+		if f.Name() == "/openstac/latest/meta_dat.jso" {
 			data, err := ioutil.ReadAll(f.Sys().(io.Reader))
 			if err != nil {
 				return ci, fmt.Errorf("Error while reading %s: %s", METADATA, err)
 			}
-			if err := yaml.Unmarshal(data, &ci.Metadata); err != nil {
+			if err := json.Unmarshal(data, &ci.Metadata); err != nil {
 				return ci, fmt.Errorf("Error while unmarshalling user-data: %s", err)
 			}
 		}
