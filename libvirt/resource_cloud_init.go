@@ -28,9 +28,9 @@ func resourceCloudInit() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-			"ssh_authorized_key": &schema.Schema{
+			"user_data": &schema.Schema{
 				Type:     schema.TypeString,
-				Optional: true,
+				Required: true,
 				ForceNew: true,
 			},
 		},
@@ -46,14 +46,7 @@ func resourceCloudInitCreate(d *schema.ResourceData, meta interface{}) error {
 
 	cloudInit := newCloudInitDef()
 	cloudInit.Metadata.LocalHostname = d.Get("local_hostname").(string)
-
-	if _, ok := d.GetOk("ssh_authorized_key"); ok {
-		sshKey := d.Get("ssh_authorized_key").(string)
-		cloudInit.UserData.SSHAuthorizedKeys = append(
-			cloudInit.UserData.SSHAuthorizedKeys,
-			sshKey)
-	}
-
+  cloudInit.UserData = d.Get("user_data").(string)
 	cloudInit.Name = d.Get("name").(string)
 	cloudInit.PoolName = d.Get("pool").(string)
 
@@ -83,9 +76,7 @@ func resourceCloudInitRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Error while retrieving remote ISO: %s", err)
 	}
 
-	if len(ci.UserData.SSHAuthorizedKeys) == 1 {
-		d.Set("ssh_authorized_key", ci.UserData.SSHAuthorizedKeys[0])
-	}
+  d.Set("user_data", ci.UserData)
 
 	return nil
 }

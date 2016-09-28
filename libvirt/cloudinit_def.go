@@ -17,7 +17,6 @@ import (
 	libvirt "github.com/dmacvicar/libvirt-go"
 	"github.com/hooklift/iso9660"
 	"github.com/mitchellh/packer/common/uuid"
-	"gopkg.in/yaml.v2"
 )
 
 // names of the files expected by cloud-init
@@ -32,9 +31,7 @@ type defCloudInit struct {
 		LocalHostname string `json:"local-hostname"`
 		InstanceID    string `json:"instance-id"`
 	}
-	UserData struct {
-		SSHAuthorizedKeys []string `yaml:"ssh_authorized_keys"`
-	}
+	UserData string
 }
 
 // Creates a new cloudinit with the defaults
@@ -185,14 +182,9 @@ func (ci *defCloudInit) createFiles() (string, error) {
   }
 
 	// Create files required by ISO file
-	ud, err := yaml.Marshal(&ci.UserData)
-	if err != nil {
-		return "", fmt.Errorf("Error dumping cloudinit's user data: %s", err)
-	}
-	userdata := fmt.Sprintf("#cloud-config\n%s", string(ud))
 	if err = ioutil.WriteFile(
 		filepath.Join(dataDir, USERDATA),
-		[]byte(userdata),
+		[]byte(ci.UserData),
 		os.ModePerm); err != nil {
 		return "", fmt.Errorf("Error while writing user-data to file: %s", err)
 	}
@@ -275,9 +267,7 @@ func newCloudInitDefFromRemoteISO(virConn *libvirt.VirConnection, id string) (de
 			if err != nil {
 				return ci, fmt.Errorf("Error while reading %s: %s", USERDATA, err)
 			}
-			if err := yaml.Unmarshal(data, &ci.UserData); err != nil {
-				return ci, fmt.Errorf("Error while unmarshalling user-data: %s", err)
-			}
+      ci.UserData = string(data)
 		}
 
 		//TODO: the iso9660 has a bug...
