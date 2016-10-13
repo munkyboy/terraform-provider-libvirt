@@ -50,6 +50,12 @@ func networkInterfaceCommonSchema() map[string]*schema.Schema {
 			Computed: true,
 			ForceNew: true,
 		},
+    "model": &schema.Schema{
+			Type:          schema.TypeString,
+			Optional:      true,
+			ForceNew:      true,
+			Computed:      true,
+		},
 		"wait_for_lease": &schema.Schema{
 			Type:     schema.TypeBool,
 			Optional: true,
