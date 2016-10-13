@@ -169,7 +169,13 @@ func resourceLibvirtDomainCreate(d *schema.ResourceData, meta interface{}) error
 		prefix := fmt.Sprintf("network_interface.%d", i)
 
 		netIface := defNetworkInterface{}
-		netIface.Model.Type = "virtio"
+
+    // set NIC model
+    if model, ok := d.GetOk(prefix + ".model"); ok {
+		  netIface.Model.Type = model.(string)
+    } else {
+      netIface.Model.Type = "virtio"
+    }
 
 		// calculate the MAC address
 		var mac string
@@ -545,6 +551,7 @@ func resourceLibvirtDomainRead(d *schema.ResourceData, meta interface{}) error {
 		prefix := fmt.Sprintf("network_interface.%d", i)
 
 		mac := strings.ToUpper(networkInterfaceDef.Mac.Address)
+    model := networkInterfaceDef.Model.Type
 		netIface := map[string]interface{}{
 			"network_id":     "",
 			"network_name":   "",
@@ -553,6 +560,7 @@ func resourceLibvirtDomainRead(d *schema.ResourceData, meta interface{}) error {
 			"macvtap":        "",
 			"passthrough":    "",
 			"mac":            mac,
+      "model":          model,
 			"hostname":       "",
 			"wait_for_lease": false,
 		}
